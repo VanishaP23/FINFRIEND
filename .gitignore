@@ -1,0 +1,27 @@
+# ---- Python (backend) ----
+__pycache__/
+*.pyc
+.env
+arthsaathi.db
+backend/arthsaathi.db
+.venv/
+venv/
+
+# ---- Node / Vite (frontend) ----
+node_modules/
+dist/
+.vite/
+*.local
+
+# ---- RAG vector index (rebuild with: python backend/ingest.py) ----
+chroma_db/
+backend/chroma_db/
+
+# ---- Voice model cache (downloaded on first run, do not commit) ----
+models/
+*.gguf
+
+# ---- OS / editor ----
+.DS_Store
+.idea/
+.vscode/

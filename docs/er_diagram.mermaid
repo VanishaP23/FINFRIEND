@@ -1,0 +1,61 @@
+erDiagram
+    personas ||--o{ assets          : "owns"
+    personas ||--o{ transactions    : "spends"
+    personas ||--o{ gullak          : "saves into"
+    personas ||--o{ scam_checks     : "is warned by"
+    personas ||--o{ chat_messages   : "talks to advisor"
+
+    personas {
+        INTEGER user_id PK
+        TEXT    name
+        TEXT    persona
+        TEXT    income_pattern
+        INTEGER monthly_income_paise
+        INTEGER monthly_expense_paise
+        INTEGER buffer_paise
+        INTEGER dependents
+        INTEGER land_acres
+        TEXT    category
+        INTEGER is_taxpayer
+        INTEGER is_disabled
+        TEXT    language
+    }
+    assets {
+        INTEGER user_id FK
+        TEXT    name
+        TEXT    category
+        INTEGER value_paise
+        INTEGER trend_bps
+    }
+    transactions {
+        INTEGER id PK
+        INTEGER user_id FK
+        TEXT    category
+        INTEGER amount_paise
+    }
+    gullak {
+        INTEGER id PK
+        INTEGER user_id FK
+        INTEGER amount_paise
+        TEXT    note
+    }
+    scam_checks {
+        INTEGER id PK
+        INTEGER user_id FK
+        TEXT    sms_text
+        INTEGER risk_score
+        TEXT    verdict
+        TEXT    status
+        TEXT    created_at
+    }
+    chat_messages {
+        INTEGER id PK
+        INTEGER user_id FK
+        TEXT    role
+        TEXT    text
+        TEXT    agent
+        TEXT    tool_calls
+        TEXT    critic_status
+        TEXT    critic_reason
+        TEXT    created_at
+    }

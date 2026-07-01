@@ -1,0 +1,24 @@
+# --- web + orchestration ---
+fastapi
+uvicorn[standard]
+httpx
+pydantic
+python-multipart            # FastAPI receives the voice audio upload
+mcp[cli]                    # the MCP server
+langgraph                   # ORCHESTRATOR: guard -> plan -> agent -> compose -> critic
+crewai                      # AGENTS: the 7 CrewAI specialists (phrasing layer)
+litellm                     # CrewAI uses this to reach Sarvam (sarvam/) + any OpenAI-compatible API
+
+# --- RAG (vector DB + PDF parsing) ---
+chromadb                    # vector database for docs + per-user memory
+pdfplumber                  # pulls text out of the SEBI / NCFE PDFs
+
+# --- NOT pip packages ---
+# Voice  = Sarvam AI cloud API (STT Saaras v3 + TTS Bulbul) -> just set SARVAM_API_KEY
+# LLM    = Sarvam AI cloud API (sarvam-30b) -> same key. CrewAI reaches it via litellm.
+# Embedder (RAG/memory) = local nomic-embed-text-v1.5 (GGUF) on llama.cpp (optional).
+# Monte Carlo uses only the Python standard library.
+
+# --- open-source voice (self-hosted STT + TTS, no API keys) ---
+faster-whisper
+piper-tts
