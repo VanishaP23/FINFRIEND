@@ -218,6 +218,50 @@ def get_personas():
     return [dict(r) for r in rows]
 
 
+def ensure_views():
+    """Install the read-only analytics views from sql/views.sql (idempotent).
+    Views are pure SELECTs over existing tables; they never store numbers, so
+    they cannot conflict with the 'compute, don't store' rule."""
+    path = os.path.join(os.path.dirname(__file__), "sql", "views.sql")
+    if not os.path.exists(path):
+        return False
+    c = _conn()
+    try:
+        c.executescript(open(path, encoding="utf-8").read())
+        c.commit()
+        return True
+    finally:
+        c.close()
+
+
+def query_view(view_name, user_id=None):
+    """Return rows from one analytics view as a list of dicts. Whitelisted names
+    only (no string interpolation of user input into SQL beyond the fixed set)."""
+    allowed = {
+        "v_financial_health", "v_spending_breakdown", "v_asset_summary",
+        "v_scam_alerts", "v_chat_audit", "v_admin_fraud_trends",
+        "v_admin_critic_stats",
+    }
+    if view_name not in allowed:
+        raise ValueError(f"unknown view: {view_name}")
+    ensure_views()
+    c = _conn()
+    try:
+        c.row_factory = sqlite3.Row
+        if user_id is not None and view_name in (
+            "v_financial_health", "v_spending_breakdown", "v_asset_summary",
+            "v_scam_alerts", "v_chat_audit",
+        ):
+            rows = c.execute(
+                f"SELECT * FROM {view_name} WHERE user_id = ?", (user_id,)
+            ).fetchall()
+        else:
+            rows = c.execute(f"SELECT * FROM {view_name}").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        c.close()
+
+
 def get_profile(user_id):
     """The full profile for one person (falls back to Priya if id is unknown)."""
     c = _conn()

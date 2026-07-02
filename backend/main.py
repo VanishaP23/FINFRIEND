@@ -142,13 +142,22 @@ def _tesseract_ready(pytesseract):
 
 
 def _ocr_image(path):
-    """OCR a single image (PNG/JPG). Returns '' if OCR is unavailable."""
+    """OCR a single image (PNG/JPG). Returns extracted text, or '' with a logged
+    reason (so a blank result is diagnosable, not silent)."""
     try:
         import pytesseract
         from PIL import Image
         _tesseract_ready(pytesseract)
-        return (pytesseract.image_to_string(Image.open(path)) or "").strip()
-    except Exception:
+        img = Image.open(path)
+        if img.mode != "RGB":
+            img = img.convert("RGB")                              # OCR is happier on RGB
+        text = (pytesseract.image_to_string(img, lang="eng") or "").strip()
+        if not text:
+            print(f"[OCR] image produced no text: {path} (blurry scan or wrong crop?)")
+        return text
+    except Exception as e:
+        print(f"[OCR] image OCR failed for {path}: {type(e).__name__}: {e} "
+              f"-> is the Tesseract BINARY installed and on PATH / TESSERACT_CMD?")
         return ""
 
 
@@ -177,13 +186,32 @@ def _rupees_to_paise(raw):
         return None
 
 
+def _extract_aadhaar_number(text):
+    """Find a valid 12-digit Aadhaar in noisy OCR text. Handles OCR confusions
+    (O->0, |->1), any separators (space/hyphen/dot), avoids DOB-year bleed, and
+    skips the 16-digit VID. Returns 'NNNN NNNN NNNN' or None."""
+    if not text:
+        return None
+    t = text.replace("O", "0").replace("o", "0").replace("|", "1")
+    t = re.sub(r"VID[:\s]*[\d\s]{14,}", " ", t, flags=re.I)     # drop 16-digit VID
+    for run in re.findall(r"\d[\d\s.\-]{10,}\d", t):
+        digits = re.sub(r"\D", "", run)
+        if len(digits) == 12 and digits[0] not in "01":
+            return f"{digits[0:4]} {digits[4:8]} {digits[8:12]}"
+        if len(digits) > 12:
+            w = digits[-12:]                                      # Aadhaar usually trails the DOB
+            if w[0] not in "01":
+                return f"{w[0:4]} {w[4:8]} {w[8:12]}"
+    return None
+
+
 def _extract_document_fields(doc_type, text):
     compact = re.sub(r"\s+", " ", text or "")
     fields = {}
     if doc_type == "aadhaar":
-        match = re.search(r"\b(\d{4}\s?\d{4}\s?\d{4})\b", compact)
-        if match:
-            fields["aadhaar_number"] = re.sub(r"\s+", " ", match.group(1)).strip()
+        num = _extract_aadhaar_number(text)
+        if num:
+            fields["aadhaar_number"] = num
     if doc_type == "pan":
         match = re.search(r"\b([A-Z]{5}\d{4}[A-Z])\b", compact.upper())
         if match:
@@ -708,6 +736,28 @@ def assets(user_id: int = 1):
 def legacy(user_id: int = 1):
     """Legacy Guardian agent: a guided checklist."""
     return legacy_plan(db.get_profile(user_id))
+
+
+@app.get("/admin/analytics")
+def admin_analytics():
+    """Admin dashboard: honest aggregates over REAL logged events, served from
+    the sql/views.sql views (fraud trends + Critic governance). No invented
+    numbers -- every row is a live SELECT over scam_checks / chat_messages."""
+    return {
+        "fraud_trends": db.query_view("v_admin_fraud_trends"),
+        "critic_stats": db.query_view("v_admin_critic_stats"),
+    }
+
+
+@app.get("/admin/view/{view_name}")
+def admin_view(view_name: str, user_id: int | None = None):
+    """Fetch any whitelisted analytics view (optionally filtered by user_id).
+    Views: v_financial_health, v_spending_breakdown, v_asset_summary,
+    v_scam_alerts, v_chat_audit, v_admin_fraud_trends, v_admin_critic_stats."""
+    try:
+        return {"view": view_name, "rows": db.query_view(view_name, user_id)}
+    except ValueError as e:
+        return JSONResponse(status_code=404, content={"error": str(e)})
 
 
 @app.get("/legacy/card")
