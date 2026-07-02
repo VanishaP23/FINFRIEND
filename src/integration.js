@@ -276,6 +276,10 @@ async function newAddToGullak(amount) {
 async function newCheckScam() {
   const box = document.getElementById("scamVerdict");
   const text = (document.getElementById("scamText") || {}).value || "";
+  if (!text.trim()) {
+    if (window.showChatStatus) window.showChatStatus("Paste a message first, then tap Check.");
+    return;
+  }
   let res;
   try {
     res = await postJSON("/scam/check", { user_id: getUser(), sms_text: text, language: getLang() });
@@ -1055,6 +1059,43 @@ export function installIntegration() {
   }
   bindChatDock();
 
+  // ---- Parivar Patra (Family Card): after survivor verification, replace the
+  // prototype's hardcoded legacy panel with the REAL tool-generated card from
+  // GET /legacy/card, and add a Print button. Backend down -> prototype stays.
+  function wireParivarPatra() {
+    const orig = window.completeLegacyVerification;
+    window.completeLegacyVerification = async function () {
+      if (orig) orig.apply(this, arguments);          // keep the demo unlock flow
+      try {
+        const res = await fetch(`${API}/legacy/card?user_id=${getUser()}`);
+        if (!res.ok) return;
+        const card = await res.json();
+        const panel = document.getElementById("legacyProfile");
+        if (!panel) return;
+        const rows = card.assets.map((a) => `
+          <div class="legacy-fact" style="text-align:left">
+            <small>${a.name} \u00b7 ${a.value}</small>
+            <b style="font-size:12px;font-weight:600">${a.claim_route}</b>
+            <small>Documents: ${a.documents.join(", ")}</small>
+          </div>`).join("");
+        const steps = card.universal_steps.map((x) => `<li>${x}</li>`).join("");
+        panel.innerHTML = `
+          <div class="profile-summary">
+            <div class="profile-avatar">\ud83d\udccb</div>
+            <div><b>${card.title} \u00b7 ${card.for}</b>
+              <p class="note" style="margin:2px 0 0">${card.asset_count} assets \u00b7 total ${card.total_value} \u00b7 every line from recorded facts, never guessed</p>
+            </div>
+            <span class="private-pill">\u2713 Authorised</span>
+          </div>
+          <div class="legacy-facts" style="grid-template-columns:1fr">${rows}</div>
+          <div style="margin-top:10px"><b style="font-size:12px">First steps for the family</b>
+            <ol class="note" style="margin:6px 0 0 16px">${steps}</ol></div>
+          <p class="note" style="margin-top:8px">${card.note}</p>
+          <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="window.print()">\ud83d\udda8 Print Parivar Patra</button>`;
+      } catch (e) { console.warn("Parivar Patra not wired:", e); }
+    };
+  }
+
   // expose a couple of helpers for quick manual testing in the console
   window.ArthSaathi = { sendUserText, loadInitialData, API, getUser, getLang, loadDocuments };
 
@@ -1068,6 +1109,7 @@ export function installIntegration() {
   loadSchemes();                               // wire Schemes per-user
   loadScamFeed();                              // wire the live Threat Shield feed
   loadDocuments();                             // wire uploaded KYC docs per-user
+  wireParivarPatra();                          // wire the Legacy screen's Family Card
 }
 
 export default installIntegration;
