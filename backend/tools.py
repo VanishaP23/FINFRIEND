@@ -189,6 +189,71 @@ def legacy_plan(profile):
 
 
 # ---------------------------------------------------------------------------
+# THE PARIVAR PATRA (Family Card). Built for the families left searching:
+# one deterministic page listing every asset, the exact route to claim it,
+# and the documents needed. No AI in this function; every line is traceable,
+# so the card can be printed and taken to a bank or ward office as-is.
+# ---------------------------------------------------------------------------
+_CLAIM_ROUTES = {
+    # category -> (where survivors claim it, documents needed)
+    "investment":  ("Bank / AMC branch: deceased-claim or transmission form. "
+                    "Unclaimed deposits: search the RBI UDGAM portal. Unclaimed shares/dividends: IEPF.",
+                    ["Death certificate", "Nominee ID or legal-heir certificate", "Account/folio number", "Claim form"]),
+    "gold":        ("Physically held gold passes to legal heirs. If pledged for a gold loan, settle or transfer the loan at the lender first.",
+                    ["Death certificate", "Legal-heir certificate", "Loan/pledge receipt if pledged"]),
+    "land":        ("Tehsil / ward office: mutation of land records to the heirs (varisan). A will simplifies this greatly.",
+                    ["Death certificate", "Legal-heir or succession certificate", "Land record (khasra/khata)", "Aadhaar of heirs"]),
+    "vehicle":     ("RTO: transfer of registration to the heir. Insurer: transfer or close the policy.",
+                    ["Death certificate", "RC book", "Legal-heir certificate", "Insurance policy"]),
+    "livestock":   ("Passes to the family directly; update any livestock insurance with the insurer.",
+                    ["Death certificate", "Insurance papers if insured"]),
+    "equipment":   ("Passes to the family directly; transfer any loan against it at the lender.",
+                    ["Death certificate", "Loan papers if financed"]),
+    "electronics": ("Passes to the family directly.",
+                    ["None"]),
+    "inventory":   ("Business stock passes with the business; inform suppliers and settle credit lines.",
+                    ["Death certificate", "Business registration if any"]),
+}
+_DEFAULT_ROUTE = ("Ask at the nearest bank branch or ward office with the documents listed.",
+                  ["Death certificate", "Legal-heir certificate"])
+
+
+def family_card(profile, assets):
+    """The Parivar Patra: every asset with its claim route + documents, plus
+    the universal after-death steps (EPF, insurance, UDGAM/IEPF, closures).
+    Deterministic. Money in paise; fmt() renders the display values."""
+    items, total = [], 0
+    for a in assets:
+        cat = (a.get("category") or "").lower()
+        route, docs = _CLAIM_ROUTES.get(cat, _DEFAULT_ROUTE)
+        total += a.get("value_paise", 0)
+        items.append({
+            "name": a.get("name", ""), "category": cat,
+            "value_paise": a.get("value_paise", 0), "value": fmt(a.get("value_paise", 0)),
+            "claim_route": route, "documents": docs,
+        })
+    universal = [
+        "Get 10+ certified copies of the death certificate (every claim needs one).",
+        "EPF / pension: file Form 20 / 10D at the employer or the EPFO office.",
+        "Life insurance (incl. PMJJBY) and accident cover (PMSBY): claim at the bank / insurer.",
+        "Search RBI UDGAM for unclaimed bank deposits and IEPF for unclaimed shares in the person's name.",
+        "Bank accounts: a nominee claims directly; without a nominee a legal-heir certificate is needed.",
+        "Close or transfer SIM, electricity and subscriptions to stop silent auto-debits.",
+    ]
+    return {
+        "title": "Parivar Patra (Family Card)",
+        "for": profile.get("name", ""),
+        "assets": items,
+        "asset_count": len(items),
+        "total_value_paise": total,
+        "total_value": fmt(total),
+        "universal_steps": universal,
+        "note": ("Every line above comes from recorded facts and fixed rules, never guessed. "
+                 "Print this page and carry it to the bank or ward office."),
+    }
+
+
+# ---------------------------------------------------------------------------
 # SCHEME RULES as DATA (not buried in if-blocks). Each entry: the scheme name,
 # a predicate profile->bool, the documents to keep ready, a version stamp, and
 # the reason shown when eligible / not. Thresholds for real schemes change over
@@ -391,6 +456,8 @@ TOOLS = {
                          "sms_text, language", scam_check),
     "legacy_plan":  Tool("legacy_plan",  "A simple inheritance / nominee checklist.",
                          "profile", legacy_plan),
+    "family_card":  Tool("family_card",  "Parivar Patra: per-asset claim routes + documents for survivors.",
+                         "profile, assets", family_card),
 }
 
 

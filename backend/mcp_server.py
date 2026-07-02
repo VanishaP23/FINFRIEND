@@ -54,6 +54,16 @@ def search_facts(query: str, k: int = 3) -> list:
 
 
 @mcp.tool()
+def parivar_patra(user_id: int = 1) -> dict:
+    """Generate the Parivar Patra (Family Card): every recorded asset with the
+    exact claim route and documents a surviving family needs. Deterministic."""
+    import db
+    from tools import family_card
+    db.init_db()
+    return family_card(db.get_profile(user_id), db.get_assets(user_id))
+
+
+@mcp.tool()
 def check_scam(sms_text: str, language: str = "en") -> dict:
     """Score an SMS for scam risk and return a warning message."""
     return scam_check(sms_text, language)

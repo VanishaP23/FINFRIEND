@@ -17,6 +17,12 @@
 --     tools.py. They are NOT tables -- that is what lets the Critic refuse any
 --     number a tool did not produce. We only persist raw facts + history.
 -- ===========================================================================
+--
+-- IS THIS FILE EXECUTED?  No. The running app builds tables in Python
+-- (db.py::init_db). This folder is DOCUMENTATION + the Postgres-ready twin:
+-- read it to understand the schema, or run it to stand up the same DB in a
+-- plain SQL / Postgres setup. Keep it in sync with db.py when tables change.
+-- ===========================================================================
 
 PRAGMA foreign_keys = ON;          -- SQLite needs this ON every connection
 
@@ -105,6 +111,54 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     language         TEXT    NOT NULL DEFAULT 'en' CHECK (language IN ('en','hi','kn')),
     created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+-- ===========================================================================
+-- AUTH + SESSION + DOCUMENTS  (db.py builds these; added so the twin is
+-- complete: OTP login, rolling per-user memory, uploaded KYC documents.)
+-- ===========================================================================
+
+CREATE TABLE IF NOT EXISTS auth_identities (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES personas(user_id) ON DELETE CASCADE,
+    provider    TEXT    NOT NULL,                          -- otp | google | ...
+    identifier  TEXT    NOT NULL UNIQUE,                   -- the email or phone
+    verified    INTEGER NOT NULL DEFAULT 0 CHECK (verified IN (0,1)),
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS auth_otps (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    identifier  TEXT    NOT NULL,                           -- email/phone the OTP was sent to
+    otp         TEXT    NOT NULL,
+    expires_at  INTEGER NOT NULL,                           -- unix epoch seconds
+    consumed    INTEGER NOT NULL DEFAULT 0 CHECK (consumed IN (0,1)),
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- SQLite side of memory; the vector side is ChromaDB's "user_memory" collection.
+CREATE TABLE IF NOT EXISTS user_contexts (
+    user_id      INTEGER PRIMARY KEY REFERENCES personas(user_id) ON DELETE CASCADE,
+    summary      TEXT    NOT NULL DEFAULT '',
+    last_agent   TEXT,
+    last_channel TEXT    NOT NULL DEFAULT 'chat',
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_documents (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL REFERENCES personas(user_id) ON DELETE CASCADE,
+    doc_type         TEXT    NOT NULL,                       -- aadhaar | pan | statement | other
+    filename         TEXT    NOT NULL,
+    stored_path      TEXT    NOT NULL,
+    content_type     TEXT,
+    status           TEXT    NOT NULL DEFAULT 'uploaded',
+    extracted_text   TEXT    DEFAULT '',
+    extracted_fields TEXT    DEFAULT '{}',                   -- JSON as text
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+-- db.py also adds this column to chat_messages at runtime (ALTER TABLE):
+--   ALTER TABLE chat_messages ADD COLUMN channel TEXT NOT NULL DEFAULT 'chat';
 
 -- ---------------------------------------------------------------------------
 -- NOT BUILT ON PURPOSE (present in the spec doc, absent from the backend):

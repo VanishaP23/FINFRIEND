@@ -6,6 +6,12 @@
 -- sample history for the two new panels (scam alerts, chat/Critic audit).
 -- All money is in PAISE. Run AFTER schema.sql. Idempotent-ish: re-running will
 -- duplicate the history rows, so reset the file first if you re-seed.
+--
+-- TWO SEED PATHS (do not confuse them):
+--   * The RUNNING APP seeds users 1-4 automatically in Python (db.py::init_db).
+--     This file is the SQL twin of that seed -- documentation, not executed.
+--   * Extra demo users 10-19 are loaded from CSV by `python seed_from_csv.py`
+--     (see the documented block at the end of this file). No hand-typing.
 -- ===========================================================================
 
 PRAGMA foreign_keys = ON;
@@ -75,3 +81,34 @@ INSERT INTO chat_messages (user_id, role, text, agent, tool_calls, citations, cr
   (3, 'assistant', 'For a ₹50,000 loan at 12% over 12 months, your EMI is about ₹4,442 per month, and the total interest is about ₹3,304.', 'advisor', '["compute_emi"]',   '[]', 'delivered', 'ok',                              'kn', '2026-06-28 09:32:01'),
   (2, 'user',      'will my money survive the year?',                                                                                   NULL,      NULL,                NULL, NULL,        NULL,                              'hi', '2026-06-28 09:40:00'),
   (2, 'assistant', 'In 1,000 simulations, your money lasts about 5 months, and the chance of running out within a year is high. Build a one-month emergency buffer to lower your risk.', 'risk', '["monte_carlo"]', '[]', 'delivered', 'ok', 'hi', '2026-06-28 09:40:01');
+
+-- ===========================================================================
+-- EXTENDED DEMO PERSONAS (user_ids 10-19)
+-- ---------------------------------------------------------------------------
+-- These are NOT loaded by this file. They live in backend/data/personas.csv
+-- (plus assets.csv / transactions.csv / gullak.csv / scam_messages.csv) and
+-- are loaded by:   python seed_from_csv.py
+-- The loader converts RUPEES -> PAISE, refuses to overwrite users 1-4, and
+-- scores each scam_messages row through the REAL tools.scam_check(), so every
+-- risk_score stored is one the tool produced (the Critic trust model holds).
+--
+-- They are listed here as DOCUMENTATION only, so this file remains a complete
+-- picture of the seeded database. Money below is shown in PAISE to match the
+-- rows above. To change them, edit the CSVs (in Excel / Sheets) and re-run the
+-- loader -- never hand-edit rows here.
+--
+--  uid  name     persona                income    inc(paise) exp(paise) buffer(paise) dep land cat            tax dis lang
+--  10   Meena    street food vendor     volatile   2200000    1800000     900000       3   0  self-employed   0   0  hi
+--  11   Arjun    auto rickshaw driver   volatile   2600000    2100000    1200000       2   0  gig             0   0  hi
+--  12   Lakshmi  handloom weaver        irregular  1600000    1300000     700000       2   0  self-employed   0   0  kn
+--  13   Suresh   dairy farmer           seasonal   2000000    1500000    2500000       4   2  farmer          0   0  hi
+--  14   Fatima   home tailor            irregular  1800000    1400000    1000000       1   0  self-employed   0   0  hi
+--  15   Ravi     construction worker    volatile   1900000    1600000     500000       3   0  gig             0   0  kn
+--  16   Ananya   anganwadi worker       stable     1500000    1200000    1800000       1   0  salaried        0   0  hi
+--  17   Gopal    retired postman        stable     2100000    1700000   15000000       0   0  salaried        1   0  hi
+--  18   Deepa    kirana shop owner      stable     3500000    2600000    4000000       2   0  self-employed   1   0  en
+--  19   Ibrahim  coastal fisherman      seasonal   1700000    1400000     800000       5   0  self-employed   0   0  kn
+--
+-- Their assets, transactions, gullak entries and scam-check history are
+-- likewise in the CSVs. See backend/data/ and seed_from_csv.py.
+-- ===========================================================================

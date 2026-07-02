@@ -114,14 +114,56 @@ def _should_use_saved_context(text):
 
 
 def _extract_document_text(path, content_type):
+    """Pull text out of an uploaded document so identity/money fields can be read.
+    Text-based PDFs are read directly; images and scanned PDFs are read with OCR
+    when Tesseract is available. Always returns a string ('' if nothing readable)."""
     if content_type == "application/pdf":
         try:
             import pdfplumber
             with pdfplumber.open(path) as pdf:
-                return "\n".join((page.extract_text() or "") for page in pdf.pages).strip()
+                text = "\n".join((page.extract_text() or "") for page in pdf.pages).strip()
+            return text or _ocr_pdf(path)        # fall back to OCR for scanned PDFs
         except Exception:
             return ""
+    if content_type in ("image/png", "image/jpeg"):
+        return _ocr_image(path)
     return ""
+
+
+def _tesseract_ready(pytesseract):
+    """Point pytesseract at the Tesseract binary. Honours TESSERACT_CMD from the
+    environment, else falls back to the default Windows install path."""
+    cmd = os.getenv("TESSERACT_CMD")
+    if not cmd and os.name == "nt":
+        default = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        cmd = default if os.path.exists(default) else None
+    if cmd:
+        pytesseract.pytesseract.tesseract_cmd = cmd
+
+
+def _ocr_image(path):
+    """OCR a single image (PNG/JPG). Returns '' if OCR is unavailable."""
+    try:
+        import pytesseract
+        from PIL import Image
+        _tesseract_ready(pytesseract)
+        return (pytesseract.image_to_string(Image.open(path)) or "").strip()
+    except Exception:
+        return ""
+
+
+def _ocr_pdf(path):
+    """OCR a scanned (image-only) PDF by rasterising each page. '' if unavailable."""
+    try:
+        import pytesseract, pdfplumber
+        _tesseract_ready(pytesseract)
+        pages = []
+        with pdfplumber.open(path) as pdf:
+            for page in pdf.pages:
+                pages.append(pytesseract.image_to_string(page.to_image(resolution=200).original) or "")
+        return "\n".join(pages).strip()
+    except Exception:
+        return ""
 
 
 def _rupees_to_paise(raw):
@@ -232,7 +274,7 @@ def _document_lookup_reply(user_id, text):
             "status": "delivered",
         }
     return {
-        "reply": f"I could not find a readable {label} in your uploaded documents yet. Upload a clear text PDF or add OCR support for images, and I can retrieve it from your saved document.",
+        "reply": f"I could not read a clear {label} from your uploaded documents yet. Please upload a clearer photo or a PDF of the document, and I will read it back for you.",
         "computed_numbers": [],
         "citations": [],
         "agent": "document",
@@ -666,6 +708,15 @@ def assets(user_id: int = 1):
 def legacy(user_id: int = 1):
     """Legacy Guardian agent: a guided checklist."""
     return legacy_plan(db.get_profile(user_id))
+
+
+@app.get("/legacy/card")
+def legacy_card(user_id: int = 1):
+    """Parivar Patra: per-asset claim routes + documents for survivors.
+    Deterministic (tools.family_card); rendered by the Legacy screen after
+    the survivor-verification flow, and printable as-is."""
+    from tools import family_card
+    return family_card(db.get_profile(user_id), db.get_assets(user_id))
 
 
 @app.get("/scheme/eligible")
